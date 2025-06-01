@@ -1,5 +1,6 @@
 node_modules/
 app/.expo/
+app/node_modules/
 app/dist/
 app/web-build/
 app/expo-env.d.ts

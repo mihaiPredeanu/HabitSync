@@ -2,6 +2,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { Habit, HabitLog } from './HabitTypes';
 import { fetchHabits } from './habitsThunks';
+import { fetchHabitLogs } from './habitLogsThunks';
 
 interface HabitsState {
   habits: Habit[];
@@ -46,6 +47,9 @@ const habitsSlice = createSlice({
   extraReducers: (builder) => {
     builder.addCase(fetchHabits.fulfilled, (state, action) => {
       state.habits = action.payload;
+    });
+    builder.addCase(fetchHabitLogs.fulfilled, (state, action) => {
+      state.logs = action.payload;
     });
   },
 });
