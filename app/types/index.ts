@@ -1,3 +1,10 @@
+
+export interface ShoppingList {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+}
 // Global types for HabitSync
 
 export interface Category {

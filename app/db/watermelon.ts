@@ -9,6 +9,7 @@ import CategoryModel from './models/CategoryModel';
 import JournalEntryModel from './models/JournalEntryModel';
 import NotificationModel from './models/NotificationModel';
 import { appDatabaseSchema } from './schema';
+import ShoppingListModel from './models/ShoppingListModel';
 
 const adapter = new SQLiteAdapter({
   schema: appDatabaseSchema,
@@ -23,6 +24,7 @@ export const database = new Database({
     HabitLogModel,
     ToDoModel,
     ShoppingItemModel,
+    ShoppingListModel,
     CategoryModel,
     JournalEntryModel,
     NotificationModel,

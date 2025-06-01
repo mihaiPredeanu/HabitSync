@@ -5,20 +5,37 @@ import { useTheme } from '../theme/ThemeContext';
 import ShoppingItem from '../components/ShoppingItem';
 import { useDispatch, useSelector } from 'react-redux';
 import { fetchShoppingItems, addShoppingItemToDB, updateShoppingItemInDB, deleteShoppingItemFromDB } from '../features/shopping/shoppingThunks';
+import { fetchShoppingLists, addShoppingListToDB, updateShoppingListInDB, deleteShoppingListFromDB } from '../features/shopping/shoppingListsThunks';
 import { RootState, AppDispatch } from '../features/store';
 
 const ShoppingListScreen = () => {
   const { theme } = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const items = useSelector((state: RootState) => state.shopping.items);
+  const shoppingLists = useSelector((state: RootState) => state.shoppingLists.lists);
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [isEdit, setIsEdit] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Shopping lists state
+  const [listName, setListName] = useState('');
+  const [lists, setLists] = useState<string[]>(['default']); // legacy, for fallback
+  const [selectedList, setSelectedList] = useState<string>('');
+  const [renamingList, setRenamingList] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   useEffect(() => {
     dispatch(fetchShoppingItems());
+    dispatch(fetchShoppingLists());
   }, [dispatch]);
+
+  useEffect(() => {
+    if (shoppingLists.length > 0) {
+      if (!selectedList || !shoppingLists.some(l => l.id === selectedList)) {
+        setSelectedList(shoppingLists[0].id);
+      }
+    }
+  }, [shoppingLists, selectedList]);
 
   const handleAddOrUpdate = async () => {
     setError(null);
@@ -27,7 +44,7 @@ const ShoppingListScreen = () => {
       id: itemId,
       name,
       checked: false,
-      listId: 'default',
+      listId: selectedList,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -82,6 +99,125 @@ const ShoppingListScreen = () => {
       ]}
     >
       <Text style={[styles.title, { color: theme.text, marginBottom: theme.spacing }]}>Shopping List</Text>
+      {/* Shopping List Picker & Creator */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing }}>
+        <Text style={{ color: theme.text, fontWeight: 'bold', marginRight: theme.spacing / 2 }}>List:</Text>
+        <FlatList
+          data={shoppingLists}
+          horizontal
+          keyExtractor={l => l.id}
+          renderItem={({ item: l }) => (
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 4 }}>
+              <Button
+                title={l.name}
+                color={selectedList === l.id ? theme.primary : theme.input}
+                onPress={() => setSelectedList(l.id)}
+              />
+              {l.name !== 'default' && (
+                <>
+                  <Button
+                    title={renamingList === l.id ? 'Save' : '✏️'}
+                    color={theme.accent || theme.primary}
+                    onPress={async () => {
+                      if (renamingList === l.id) {
+                        const trimmed = renameValue.trim();
+                        if (trimmed && !shoppingLists.some(x => x.name === trimmed)) {
+                          const result = await dispatch(updateShoppingListInDB({ id: l.id, name: trimmed }));
+                          if (
+                            result &&
+                            result.payload &&
+                            typeof result.payload === 'object' &&
+                            'id' in result.payload &&
+                            typeof result.payload.id === 'string' &&
+                            selectedList === l.id
+                          ) {
+                            setSelectedList(result.payload.id);
+                          }
+                        }
+                        setRenamingList(null);
+                        setRenameValue('');
+                      } else {
+                        setRenamingList(l.id);
+                        setRenameValue(l.name);
+                      }
+                    }}
+                  />
+                  <Button
+                    title="🗑"
+                    color="#f44336"
+                    onPress={async () => {
+                      await dispatch(deleteShoppingListFromDB(l.id));
+                      if (selectedList === l.id && shoppingLists.length > 1) {
+                        setSelectedList(shoppingLists.find(x => x.id !== l.id)?.id || '');
+                      }
+                    }}
+                  />
+                </>
+              )}
+            </View>
+          )}
+          style={{ maxHeight: 36, marginRight: theme.spacing }}
+        />
+        {renamingList ? (
+          <TextInput
+            style={{
+              backgroundColor: theme.input,
+              color: theme.text,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: theme.borderRadius,
+              padding: theme.padding,
+              width: 100,
+              marginRight: theme.spacing / 2,
+            }}
+            placeholder="Rename List"
+            placeholderTextColor={theme.placeholder}
+            value={renameValue}
+            onChangeText={setRenameValue}
+            accessibilityLabel="Rename List Name"
+          />
+        ) : (
+          <TextInput
+            style={{
+              backgroundColor: theme.input,
+              color: theme.text,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: theme.borderRadius,
+              padding: theme.padding,
+              width: 100,
+              marginRight: theme.spacing / 2,
+            }}
+            placeholder="New List"
+            placeholderTextColor={theme.placeholder}
+            value={listName}
+            onChangeText={setListName}
+            accessibilityLabel="New List Name"
+          />
+        )}
+        {!renamingList && (
+          <Button
+            title="Add"
+            color={theme.accent || theme.primary}
+            onPress={async () => {
+              const trimmed = listName.trim();
+              if (trimmed && !shoppingLists.some(x => x.name === trimmed)) {
+                const result = await dispatch(addShoppingListToDB(trimmed));
+                if (
+                  result &&
+                  result.payload &&
+                  typeof result.payload === 'object' &&
+                  'id' in result.payload &&
+                  typeof result.payload.id === 'string'
+                ) {
+                  setSelectedList(result.payload.id);
+                }
+                setListName('');
+              }
+            }}
+          />
+        )}
+      </View>
       {/* Section: Details */}
       <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16, marginBottom: theme.spacing / 2 }}>Details</Text>
       {error && (
@@ -140,11 +276,11 @@ const ShoppingListScreen = () => {
         />
       </View>
       <View style={{ height: 1, backgroundColor: theme.border, marginBottom: theme.spacing, width: '100%' }} />
-      {items.length === 0 ? (
-        <Text style={{ color: theme.text }}>No items yet. Add one!</Text>
+      {items.filter(i => i.listId === selectedList).length === 0 ? (
+        <Text style={{ color: theme.text }}>No items in this list yet. Add one!</Text>
       ) : (
         <FlatList
-          data={items}
+          data={items.filter(i => i.listId === selectedList)}
           keyExtractor={item => item.id}
           renderItem={({ item }) => (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>

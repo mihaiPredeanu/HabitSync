@@ -1,3 +1,11 @@
+export const shoppingListSchema = tableSchema({
+  name: 'shopping_lists',
+  columns: [
+    { name: 'name', type: 'string' },
+    { name: 'created_at', type: 'string' },
+    { name: 'updated_at', type: 'string' },
+  ],
+});
 import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 export const habitSchema = tableSchema({
@@ -96,12 +104,13 @@ export const notificationSchema = tableSchema({
 });
 
 export const appDatabaseSchema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
     habitSchema,
     habitLogSchema,
     toDoSchema,
     shoppingItemSchema,
+    shoppingListSchema,
     categorySchema,
     journalEntrySchema,
     notificationSchema,
