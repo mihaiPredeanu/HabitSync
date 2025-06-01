@@ -20,6 +20,13 @@ export const fetchShoppingItems = createAsyncThunk('shopping/fetchAll', async (_
 });
 
 export const addShoppingItemToDB = createAsyncThunk('shopping/addToDB', async (item: ShoppingItem, thunkAPI) => {
+  // Validation
+  if (!item.name || typeof item.name !== 'string' || !item.name.trim()) {
+    return thunkAPI.rejectWithValue('Item name is required.');
+  }
+  if (!item.listId || typeof item.listId !== 'string' || !item.listId.trim()) {
+    return thunkAPI.rejectWithValue('List ID is required.');
+  }
   const collection = database.get('shopping_items');
   await database.write(async () => {
     await collection.create((rec: any) => {
@@ -35,6 +42,13 @@ export const addShoppingItemToDB = createAsyncThunk('shopping/addToDB', async (i
 });
 
 export const updateShoppingItemInDB = createAsyncThunk('shopping/updateInDB', async (item: ShoppingItem, thunkAPI) => {
+  // Validation
+  if (!item.name || typeof item.name !== 'string' || !item.name.trim()) {
+    return thunkAPI.rejectWithValue('Item name is required.');
+  }
+  if (!item.listId || typeof item.listId !== 'string' || !item.listId.trim()) {
+    return thunkAPI.rejectWithValue('List ID is required.');
+  }
   const collection = database.get('shopping_items');
   const record = await collection.find(item.id);
   await database.write(async () => {

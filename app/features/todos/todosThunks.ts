@@ -11,6 +11,7 @@ const todoFromRecord = (record: any): ToDo => ({
   recurring: record.recurring,
   recurrenceRule: record.recurrence_rule,
   priority: record.priority,
+  timeOfDay: record.time_of_day as ToDo['timeOfDay'],
   categoryId: record.category_id,
   sharedWith: record.shared_with ? record.shared_with.split(',') : undefined,
   createdAt: record.created_at,
@@ -33,6 +34,7 @@ export const addTodoToDB = createAsyncThunk('todos/addToDB', async (todo: ToDo, 
       rec.recurring = todo.recurring;
       rec.recurrence_rule = todo.recurrenceRule;
       rec.priority = todo.priority;
+      rec.time_of_day = todo.timeOfDay || 'any';
       rec.category_id = todo.categoryId;
       rec.shared_with = todo.sharedWith?.join(',') || '';
       rec.created_at = todo.createdAt;
@@ -53,6 +55,7 @@ export const updateTodoInDB = createAsyncThunk('todos/updateInDB', async (todo: 
       rec.recurring = todo.recurring;
       rec.recurrence_rule = todo.recurrenceRule;
       rec.priority = todo.priority;
+      rec.time_of_day = todo.timeOfDay || 'any';
       rec.category_id = todo.categoryId;
       rec.shared_with = todo.sharedWith?.join(',') || '';
       rec.updated_at = todo.updatedAt;

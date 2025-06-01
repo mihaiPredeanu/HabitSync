@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert, Keyboard } from 'react-native';
+import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert, Keyboard, TouchableOpacity, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../theme/ThemeContext';
 import ToDoItem from '../components/ToDoItem';
 import { useDispatch, useSelector } from 'react-redux';
@@ -7,12 +8,26 @@ import { fetchTodos, addTodoToDB, updateTodoInDB, deleteTodoFromDB } from '../fe
 import { scheduleHabitNotification, cancelScheduledNotification } from '../utils/notifications';
 import { RootState, AppDispatch } from '../features/store';
 
+import { ToDoTimeOfDay } from '../types';
+
+const TIME_OF_DAY_OPTIONS: { label: string; value: ToDoTimeOfDay }[] = [
+  { label: 'Morning', value: 'morning' },
+  { label: 'Afternoon', value: 'afternoon' },
+  { label: 'Evening', value: 'evening' },
+  { label: 'Any', value: 'any' },
+];
+
 const ToDoScreen = () => {
   const { theme } = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const todos = useSelector((state: RootState) => state.todos.todos);
   const [id, setId] = useState('');
   const [title, setTitle] = useState('');
+  const [timeOfDay, setTimeOfDay] = useState<ToDoTimeOfDay>('any');
+  const [recurring, setRecurring] = useState(false);
+  const [recurrenceRule, setRecurrenceRule] = useState('');
+  const [dueDate, setDueDate] = useState<string | undefined>(undefined);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
 
   useEffect(() => {
@@ -29,7 +44,11 @@ const ToDoScreen = () => {
       id: todoId,
       title,
       completed: false,
-      priority: 'none',
+      priority: 'none' as const,
+      timeOfDay,
+      dueDate,
+      recurring,
+      recurrenceRule: recurring ? recurrenceRule : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -60,6 +79,10 @@ const ToDoScreen = () => {
     }
     setId('');
     setTitle('');
+    setTimeOfDay('any');
+    setDueDate(undefined);
+    setRecurring(false);
+    setRecurrenceRule('');
     setIsEdit(false);
   };
 
@@ -102,7 +125,101 @@ const ToDoScreen = () => {
           returnKeyType="next"
           onSubmitEditing={Keyboard.dismiss}
         />
-        {/* Demo: Paste an ID to edit an existing task */}
+        {/* Time of Day Picker */}
+        {/* Due Date Picker */}
+        <View style={{ marginRight: theme.spacing / 2, alignItems: 'flex-start' }}>
+          <Text style={{ color: theme.text, fontSize: 13, marginBottom: 2 }}>Due Date</Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: theme.input,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: 8,
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              marginBottom: 4,
+            }}
+            onPress={() => setShowDatePicker(true)}
+            accessibilityLabel="Pick Due Date"
+          >
+            <Text style={{ color: theme.text, fontSize: 13 }}>
+              {dueDate ? new Date(dueDate).toLocaleDateString() : 'Set Date'}
+            </Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={dueDate ? new Date(dueDate) : new Date()}
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(_event: any, date?: Date) => {
+                setShowDatePicker(false);
+                if (date) setDueDate(date.toISOString().slice(0, 10));
+              }}
+            />
+          )}
+        </View>
+        <View style={{ marginRight: theme.spacing / 2 }}>
+          <Text style={{ color: theme.text, fontSize: 13, marginBottom: 2 }}>Time</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            {TIME_OF_DAY_OPTIONS.map(opt => (
+              <TouchableOpacity
+                key={opt.value}
+                style={{
+                  backgroundColor: timeOfDay === opt.value ? theme.primary : theme.input,
+                  borderColor: theme.border,
+                  borderWidth: 1,
+                  borderRadius: 8,
+                  paddingVertical: 4,
+                  paddingHorizontal: 8,
+                  marginRight: 4,
+                }}
+                onPress={() => setTimeOfDay(opt.value)}
+                accessibilityLabel={`Set time of day to ${opt.label}`}
+              >
+                <Text style={{ color: timeOfDay === opt.value ? '#fff' : theme.text, fontSize: 13 }}>{opt.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+        {/* Recurring toggle and rule */}
+        <View style={{ marginRight: theme.spacing / 2, alignItems: 'flex-start' }}>
+          <Text style={{ color: theme.text, fontSize: 13, marginBottom: 2 }}>Recurring</Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: recurring ? theme.primary : theme.input,
+              borderColor: theme.border,
+              borderWidth: 1,
+              borderRadius: 8,
+              paddingVertical: 4,
+              paddingHorizontal: 8,
+              marginBottom: 4,
+            }}
+            onPress={() => setRecurring(r => !r)}
+            accessibilityLabel="Toggle Recurring"
+          >
+            <Text style={{ color: recurring ? '#fff' : theme.text, fontSize: 13 }}>{recurring ? 'Yes' : 'No'}</Text>
+          </TouchableOpacity>
+          {recurring && (
+            <TextInput
+              style={{
+                backgroundColor: theme.input,
+                color: theme.text,
+                borderColor: theme.border,
+                borderWidth: 1,
+                borderRadius: 8,
+                padding: 6,
+                fontSize: 13,
+                width: 120,
+                marginTop: 2,
+              }}
+              placeholder="e.g. every Mon"
+              placeholderTextColor={theme.placeholder}
+              value={recurrenceRule}
+              onChangeText={setRecurrenceRule}
+              accessibilityLabel="Recurrence Rule"
+            />
+          )}
+        </View>
         <TextInput
           style={[
             styles.input,
@@ -134,19 +251,31 @@ const ToDoScreen = () => {
         />
       </View>
       <View style={{ height: 1, backgroundColor: theme.border, marginBottom: theme.spacing, width: '100%' }} />
+      {/* Group todos by time of day */}
       {todos.length === 0 ? (
         <Text style={{ color: theme.text }}>No tasks yet. Add one!</Text>
       ) : (
-        <FlatList
-          data={todos}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => (
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <ToDoItem todo={item} />
-              <Button title="Delete" color="#f44336" onPress={() => handleDelete(item.id)} />
+        TIME_OF_DAY_OPTIONS.map(opt => {
+          const group = todos.filter((t: typeof todos[0]) => (t.timeOfDay || 'any') === opt.value);
+          if (group.length === 0) return null;
+          return (
+            <View key={opt.value} style={{ width: '100%', marginBottom: theme.spacing * 1.5 }}>
+              <Text style={{ color: theme.primary, fontWeight: 'bold', fontSize: 16, marginBottom: 6, letterSpacing: 0.5 }}>{opt.label}</Text>
+              <View style={{ backgroundColor: theme.card, borderRadius: theme.borderRadius, padding: 4, marginBottom: 2 }}>
+                <FlatList
+                  data={group}
+                  keyExtractor={item => item.id}
+                  renderItem={({ item }) => (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                      <ToDoItem todo={item} />
+                      <Button title="Delete" color="#f44336" onPress={() => handleDelete(item.id)} />
+                    </View>
+                  )}
+                />
+              </View>
             </View>
-          )}
-        />
+          );
+        })
       )}
     </View>
   );

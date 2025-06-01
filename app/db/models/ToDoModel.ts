@@ -10,6 +10,7 @@ export default class ToDoModel extends Model {
   @field('recurring') recurring?: boolean;
   @field('recurrence_rule') recurrenceRule?: string;
   @field('priority') priority!: string;
+  @field('time_of_day') timeOfDay?: string;
   @field('category_id') categoryId?: string;
   @field('shared_with') sharedWith?: string;
   @field('created_at') createdAt!: string;

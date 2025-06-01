@@ -14,16 +14,14 @@ const ShoppingListScreen = () => {
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [isEdit, setIsEdit] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     dispatch(fetchShoppingItems());
   }, [dispatch]);
 
   const handleAddOrUpdate = async () => {
-    if (!name.trim()) {
-      Alert.alert('Validation', 'Please enter an item name.');
-      return;
-    }
+    setError(null);
     const itemId = id || Date.now().toString();
     const item = {
       id: itemId,
@@ -34,14 +32,19 @@ const ShoppingListScreen = () => {
       updatedAt: new Date().toISOString(),
     };
     // Cancel previous notification if editing
+    let result;
     if (isEdit) {
       await cancelScheduledNotification(itemId);
-      await dispatch(updateShoppingItemInDB(item));
-      Alert.alert('Success', 'Item updated!');
+      result = await dispatch(updateShoppingItemInDB(item));
     } else {
-      await dispatch(addShoppingItemToDB(item));
-      Alert.alert('Success', 'Item added!');
+      result = await dispatch(addShoppingItemToDB(item));
     }
+    // Handle validation errors from thunk
+    if (result && result.payload && typeof result.payload === 'string') {
+      setError(result.payload);
+      return;
+    }
+    Alert.alert('Success', isEdit ? 'Item updated!' : 'Item added!');
     // Schedule notification (default: 8:00 AM daily)
     try {
       await scheduleHabitNotification({
@@ -81,6 +84,9 @@ const ShoppingListScreen = () => {
       <Text style={[styles.title, { color: theme.text, marginBottom: theme.spacing }]}>Shopping List</Text>
       {/* Section: Details */}
       <Text style={{ color: theme.text, fontWeight: '600', fontSize: 16, marginBottom: theme.spacing / 2 }}>Details</Text>
+      {error && (
+        <Text style={{ color: '#f44336', marginBottom: theme.spacing / 2, fontSize: 14 }}>{error}</Text>
+      )}
       <View style={[styles.inputRow, { marginBottom: theme.spacing }] }>
         <TextInput
           style={[

@@ -82,6 +82,18 @@ const SettingsScreen = () => {
           color={theme.primary}
           accessibilityLabel="Toggle Theme"
         />
+        {/* Sync Now button for future cloud sync */}
+        <View style={{ marginLeft: theme.spacing }}>
+          <Button
+            title="Sync Now"
+            onPress={() => {
+              // For demo: show alert, in future will trigger sync
+              Alert.alert('Sync', 'Cloud sync coming soon!');
+            }}
+            color={theme.accent || theme.primary}
+            accessibilityLabel="Sync Now"
+          />
+        </View>
       </View>
       <View style={{ height: 1, backgroundColor: theme.border, marginBottom: theme.spacing, width: '100%' }} />
 

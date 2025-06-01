@@ -10,6 +10,8 @@ export interface Category {
   updatedAt: string;
 }
 
+export type ToDoTimeOfDay = 'morning' | 'afternoon' | 'evening' | 'any';
+
 export interface ToDo {
   id: string;
   title: string;
@@ -18,6 +20,7 @@ export interface ToDo {
   recurring?: boolean;
   recurrenceRule?: string;
   priority: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  timeOfDay?: ToDoTimeOfDay;
   categoryId?: string;
   sharedWith?: string[];
   createdAt: string;
