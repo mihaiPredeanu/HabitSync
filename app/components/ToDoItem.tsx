@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Button, FlatList } from 'react-native';
+import ActivityLogList from './ActivityLogList';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Button, FlatList, Alert } from 'react-native';
 import { ToDo } from '../types';
 import { useTheme } from '../theme/ThemeContext';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../features/store';
+import { updateTodoInDB } from '../features/todos/todosThunks';
+import { triggerToDoShareNotification, sendPushNotificationToUser } from '../utils/notifications';
+import { logActivity } from '../utils/logActivity';
 
 interface ToDoItemProps {
   todo: ToDo;
@@ -17,27 +23,126 @@ const priorityColors: Record<ToDo['priority'], string> = {
 
 const ToDoItem: React.FC<ToDoItemProps> = ({ todo }) => {
   const { theme } = useTheme ? useTheme() : { theme: { text: '#222', background: '#fff', border: '#eee', input: '#f5f5f5', primary: '#2196f3', borderRadius: 10, spacing: 8, padding: 8, placeholder: '#888', card: '#fff', accent: '#43a047' } };
+  const dispatch = useDispatch<AppDispatch>();
   const [modalVisible, setModalVisible] = useState(false);
   const [sharedWithInput, setSharedWithInput] = useState('');
   const [sharedWith, setSharedWith] = useState<string[]>(todo.sharedWith || []);
 
-  // For demo: update local state only. In real app, would dispatch updateTodoInDB
-  const handleAddUser = () => {
-    const trimmed = sharedWithInput.trim();
-    if (trimmed && !sharedWith.includes(trimmed)) {
-      setSharedWith([...sharedWith, trimmed]);
-      setSharedWithInput('');
-    }
-  };
-  const handleRemoveUser = (userId: string) => {
-    setSharedWith(sharedWith.filter(u => u !== userId));
+  // Persist sharedWith changes to DB and Redux
+  const persistSharedWith = async (newSharedWith: string[]) => {
+    const updatedToDo = {
+      ...todo,
+      sharedWith: newSharedWith,
+      updatedAt: new Date().toISOString(),
+    };
+    await dispatch(updateTodoInDB(updatedToDo));
   };
 
+  // Helper: get Expo push token for a user (stub, replace with real lookup)
+  const getExpoPushTokenForUser = async (userId: string): Promise<string | null> => {
+    // TODO: Replace with real lookup from backend or user profile
+    return null; // e.g., await api.getPushToken(userId)
+  };
+
+  const handleAddUser = async () => {
+    const trimmed = sharedWithInput.trim();
+    if (trimmed && !sharedWith.includes(trimmed)) {
+      const newSharedWith = [...sharedWith, trimmed];
+      setSharedWith(newSharedWith);
+      setSharedWithInput('');
+      await persistSharedWith(newSharedWith);
+      Alert.alert('Shared', `To-Do shared with ${trimmed}`);
+      await triggerToDoShareNotification({
+        todoTitle: todo.title,
+        userId: trimmed,
+        action: 'shared',
+      });
+      // Log activity
+      logActivity({
+        itemId: todo.id,
+        itemType: 'todo',
+        action: 'shared',
+        userId: trimmed,
+        details: `Shared with ${trimmed}`,
+      }, dispatch);
+      // Remote push notification to collaborator (if token available)
+      const pushToken = await getExpoPushTokenForUser(trimmed);
+      if (pushToken) {
+        await sendPushNotificationToUser({
+          expoPushToken: pushToken,
+          title: 'You have a new shared To-Do!',
+          body: `"${todo.title}" was shared with you.`,
+          data: { todoId: todo.id, action: 'shared' },
+        });
+      }
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    const newSharedWith = sharedWith.filter(u => u !== userId);
+    setSharedWith(newSharedWith);
+    await persistSharedWith(newSharedWith);
+    Alert.alert('Unshared', `To-Do unshared with ${userId}`);
+    await triggerToDoShareNotification({
+      todoTitle: todo.title,
+      userId,
+      action: 'unshared',
+    });
+    // Log activity
+    logActivity({
+      itemId: todo.id,
+      itemType: 'todo',
+      action: 'unshared',
+      userId,
+      details: `Unshared with ${userId}`,
+    }, dispatch);
+    // Remote push notification to collaborator (if token available)
+    const pushToken = await getExpoPushTokenForUser(userId);
+    if (pushToken) {
+      await sendPushNotificationToUser({
+        expoPushToken: pushToken,
+        title: 'A To-Do was unshared',
+        body: `"${todo.title}" is no longer shared with you.`,
+        data: { todoId: todo.id, action: 'unshared' },
+      });
+    }
+  };
+
+  // Helper: get avatar (initial or emoji)
+  const getAvatar = (uid: string) => {
+    if (/^[\w.-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(uid)) {
+      return uid[0].toUpperCase();
+    }
+    if (/^[\p{Emoji}]/u.test(uid)) {
+      return uid;
+    }
+    return uid[0].toUpperCase();
+  };
+
+  // Mask user ID/email for privacy
+  const maskUserId = (uid: string) => {
+    if (uid.includes('@')) {
+      return uid.replace(/(.{2}).*(@.*)/, '$1***$2');
+    }
+    if (uid.length > 6) {
+      return uid.slice(0, 2) + '***' + uid.slice(-2);
+    }
+    return uid;
+  };
+
+  const isShared = sharedWith.length > 0;
+
   return (
-    <View style={[styles.card, todo.completed && styles.completed]}>
+    <View style={[styles.card, todo.completed && styles.completed, isShared && { borderColor: theme.primary, borderWidth: 2, backgroundColor: theme.card || '#e3f2fd' }]}> 
       <View style={styles.header}>
         <Text style={styles.title}>{todo.title}</Text>
-        <View style={[styles.priority, { backgroundColor: priorityColors[todo.priority] }]}>
+        {isShared && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+            <Text style={{ color: theme.primary, fontSize: 16, fontWeight: 'bold', marginRight: 2 }} accessibilityLabel="Shared To-Do">🤝</Text>
+            <Text style={{ color: theme.primary, fontSize: 12, fontWeight: 'bold' }}>Shared</Text>
+          </View>
+        )}
+        <View style={[styles.priority, { backgroundColor: priorityColors[todo.priority] }]}> 
           <Text style={styles.priorityText}>{todo.priority.charAt(0).toUpperCase()}</Text>
         </View>
         {/* Share button */}
@@ -57,16 +162,26 @@ const ToDoItem: React.FC<ToDoItemProps> = ({ todo }) => {
       )}
       {todo.dueDate && <Text style={styles.dueDate}>Due: {todo.dueDate}</Text>}
       {/* Shared with preview */}
-      {sharedWith.length > 0 && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
+      {isShared && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4, alignItems: 'center' }}>
           <Text style={{ color: '#888', fontSize: 12, marginRight: 4 }}>Shared with:</Text>
           {sharedWith.map(uid => (
-            <View key={uid} style={{ backgroundColor: '#e3f2fd', borderRadius: 8, paddingHorizontal: 6, marginRight: 4, marginBottom: 2 }}>
-              <Text style={{ color: '#1976d2', fontSize: 12 }}>{uid}</Text>
+            <View key={uid} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, paddingVertical: 2, paddingHorizontal: 8, marginRight: 4, marginBottom: 2, borderWidth: 1, borderColor: '#90caf9' }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#90caf9', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+                <Text style={{ color: '#1976d2', fontWeight: 'bold', fontSize: 13 }}>{getAvatar(uid)}</Text>
+              </View>
+              <Text style={{ color: '#1976d2', fontSize: 12, maxWidth: 80 }} numberOfLines={1} ellipsizeMode="middle">
+                {maskUserId(uid)}
+              </Text>
             </View>
           ))}
         </View>
       )}
+      {/* Activity Log */}
+      <View style={{ marginTop: 8 }}>
+        <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>Activity Log</Text>
+        <ActivityLogList itemId={todo.id} itemType="todo" />
+      </View>
       {/* Share Modal */}
       <Modal
         visible={modalVisible}
@@ -94,7 +209,12 @@ const ToDoItem: React.FC<ToDoItemProps> = ({ todo }) => {
               keyExtractor={item => item}
               renderItem={({ item }) => (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ color: theme.text, fontSize: 14, flex: 1 }}>{item}</Text>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#90caf9', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                    <Text style={{ color: '#1976d2', fontWeight: 'bold', fontSize: 13 }}>{getAvatar(item)}</Text>
+                  </View>
+                  <Text style={{ color: theme.text, fontSize: 14, flex: 1 }} numberOfLines={1} ellipsizeMode="middle">
+                    {maskUserId(item)}
+                  </Text>
                   <TouchableOpacity onPress={() => handleRemoveUser(item)} accessibilityLabel={`Remove ${item}`}>
                     <Text style={{ color: '#f44336', fontSize: 16, marginLeft: 8 }}>Remove</Text>
                   </TouchableOpacity>

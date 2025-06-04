@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
+import ActivityLogList from './ActivityLogList';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, Button, FlatList } from 'react-native';
 import { ShoppingItem as ShoppingItemType } from '../types';
+import { triggerToDoShareNotification, sendPushNotificationToUser } from '../utils/notifications';
+import { useDispatch } from 'react-redux';
+import { AppDispatch } from '../features/store';
+import { logActivity } from '../utils/logActivity';
 import { useTheme } from '../theme/ThemeContext';
 
 interface ShoppingItemProps {
@@ -9,26 +14,119 @@ interface ShoppingItemProps {
 
 const ShoppingItem: React.FC<ShoppingItemProps> = ({ item }) => {
   const { theme } = useTheme ? useTheme() : { theme: { text: '#222', background: '#fff', border: '#eee', input: '#f5f5f5', primary: '#2196f3', borderRadius: 10, spacing: 8, padding: 8, placeholder: '#888', card: '#fff', accent: '#43a047' } };
+  const dispatch = useDispatch<AppDispatch>();
   const [modalVisible, setModalVisible] = useState(false);
   const [sharedWithInput, setSharedWithInput] = useState('');
   const [sharedWith, setSharedWith] = useState<string[]>(item.sharedWith || []);
 
   // For demo: update local state only. In real app, would dispatch updateShoppingItemInDB
-  const handleAddUser = () => {
-    const trimmed = sharedWithInput.trim();
-    if (trimmed && !sharedWith.includes(trimmed)) {
-      setSharedWith([...sharedWith, trimmed]);
-      setSharedWithInput('');
-    }
-  };
-  const handleRemoveUser = (userId: string) => {
-    setSharedWith(sharedWith.filter(u => u !== userId));
+  // Helper: get Expo push token for a user (stub, replace with real lookup)
+  const getExpoPushTokenForUser = async (userId: string): Promise<string | null> => {
+    // TODO: Replace with real lookup from backend or user profile
+    return null; // e.g., await api.getPushToken(userId)
   };
 
+  const handleAddUser = async () => {
+    const trimmed = sharedWithInput.trim();
+    if (trimmed && !sharedWith.includes(trimmed)) {
+      const newSharedWith = [...sharedWith, trimmed];
+      setSharedWith(newSharedWith);
+      setSharedWithInput('');
+      await triggerToDoShareNotification({
+        todoTitle: item.name,
+        userId: trimmed,
+        action: 'shared',
+      });
+      // Log activity
+      logActivity({
+        itemId: item.id,
+        itemType: 'shopping',
+        action: 'shared',
+        userId: trimmed,
+        details: `Shared with ${trimmed}`,
+      }, dispatch);
+      // Notify all collaborators (including the new one)
+      for (const uid of newSharedWith) {
+        const pushToken = await getExpoPushTokenForUser(uid);
+        if (pushToken) {
+          await sendPushNotificationToUser({
+            expoPushToken: pushToken,
+            title: uid === trimmed ? 'You have a new shared Shopping Item!' : 'Shopping List Updated',
+            body: uid === trimmed
+              ? `"${item.name}" was shared with you.`
+              : `"${item.name}" was shared with ${trimmed}.`,
+            data: { itemId: item.id, action: 'shared', sharedWith: newSharedWith },
+          });
+        }
+      }
+    }
+  };
+  const handleRemoveUser = async (userId: string) => {
+    const newSharedWith = sharedWith.filter(u => u !== userId);
+    setSharedWith(newSharedWith);
+    await triggerToDoShareNotification({
+      todoTitle: item.name,
+      userId,
+      action: 'unshared',
+    });
+    // Log activity
+    logActivity({
+      itemId: item.id,
+      itemType: 'shopping',
+      action: 'unshared',
+      userId,
+      details: `Unshared with ${userId}`,
+    }, dispatch);
+    // Notify all collaborators (including the removed one)
+    for (const uid of [...newSharedWith, userId]) {
+      const pushToken = await getExpoPushTokenForUser(uid);
+      if (pushToken) {
+        await sendPushNotificationToUser({
+          expoPushToken: pushToken,
+          title: uid === userId ? 'A Shopping Item was unshared' : 'Shopping List Updated',
+          body: uid === userId
+            ? `"${item.name}" is no longer shared with you.`
+            : `"${item.name}" was unshared with ${userId}.`,
+          data: { itemId: item.id, action: 'unshared', sharedWith: newSharedWith },
+        });
+      }
+    }
+  };
+
+  // Helper: get avatar (initial or emoji)
+  const getAvatar = (uid: string) => {
+    if (/^[\w.-]+@[\w.-]+\.[A-Za-z]{2,}$/.test(uid)) {
+      return uid[0].toUpperCase();
+    }
+    if (/^[\p{Emoji}]/u.test(uid)) {
+      return uid;
+    }
+    return uid[0].toUpperCase();
+  };
+
+  // Mask user ID/email for privacy
+  const maskUserId = (uid: string) => {
+    if (uid.includes('@')) {
+      return uid.replace(/(.{2}).*(@.*)/, '$1***$2');
+    }
+    if (uid.length > 6) {
+      return uid.slice(0, 2) + '***' + uid.slice(-2);
+    }
+    return uid;
+  };
+
+  const isShared = sharedWith.length > 0;
+
   return (
-    <View style={[styles.card, item.checked && styles.checked]}>
+    <View style={[styles.card, item.checked && styles.checked, isShared && { borderColor: theme.primary, borderWidth: 2, backgroundColor: theme.card || '#e3f2fd' }]}> 
       <View style={styles.header}>
         <Text style={styles.name}>{item.name}</Text>
+        {isShared && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 6 }}>
+            <Text style={{ color: theme.primary, fontSize: 16, fontWeight: 'bold', marginRight: 2 }} accessibilityLabel="Shared Shopping Item">🤝</Text>
+            <Text style={{ color: theme.primary, fontSize: 12, fontWeight: 'bold' }}>Shared</Text>
+          </View>
+        )}
         {item.checked && <Text style={styles.checkmark}>✔</Text>}
         {/* Share button */}
         <TouchableOpacity
@@ -41,16 +139,26 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item }) => {
       </View>
       {item.listId && <Text style={styles.listId}>List: {item.listId}</Text>}
       {/* Shared with preview */}
-      {sharedWith.length > 0 && (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4 }}>
+      {isShared && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 4, alignItems: 'center' }}>
           <Text style={{ color: '#888', fontSize: 12, marginRight: 4 }}>Shared with:</Text>
           {sharedWith.map(uid => (
-            <View key={uid} style={{ backgroundColor: '#e3f2fd', borderRadius: 8, paddingHorizontal: 6, marginRight: 4, marginBottom: 2 }}>
-              <Text style={{ color: '#1976d2', fontSize: 12 }}>{uid}</Text>
+            <View key={uid} style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 16, paddingVertical: 2, paddingHorizontal: 8, marginRight: 4, marginBottom: 2, borderWidth: 1, borderColor: '#90caf9' }}>
+              <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#90caf9', alignItems: 'center', justifyContent: 'center', marginRight: 4 }}>
+                <Text style={{ color: '#1976d2', fontWeight: 'bold', fontSize: 13 }}>{getAvatar(uid)}</Text>
+              </View>
+              <Text style={{ color: '#1976d2', fontSize: 12, maxWidth: 80 }} numberOfLines={1} ellipsizeMode="middle">
+                {maskUserId(uid)}
+              </Text>
             </View>
           ))}
         </View>
       )}
+      {/* Activity Log */}
+      <View style={{ marginTop: 8 }}>
+        <Text style={{ color: theme.text, fontWeight: 'bold', fontSize: 14, marginBottom: 2 }}>Activity Log</Text>
+        <ActivityLogList itemId={item.id} itemType="shopping" />
+      </View>
       {/* Share Modal */}
       <Modal
         visible={modalVisible}
@@ -78,7 +186,12 @@ const ShoppingItem: React.FC<ShoppingItemProps> = ({ item }) => {
               keyExtractor={item => item}
               renderItem={({ item }) => (
                 <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                  <Text style={{ color: theme.text, fontSize: 14, flex: 1 }}>{item}</Text>
+                  <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#90caf9', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
+                    <Text style={{ color: '#1976d2', fontWeight: 'bold', fontSize: 13 }}>{getAvatar(item)}</Text>
+                  </View>
+                  <Text style={{ color: theme.text, fontSize: 14, flex: 1 }} numberOfLines={1} ellipsizeMode="middle">
+                    {maskUserId(item)}
+                  </Text>
                   <TouchableOpacity onPress={() => handleRemoveUser(item)} accessibilityLabel={`Remove ${item}`}>
                     <Text style={{ color: '#f44336', fontSize: 16, marginLeft: 8 }}>Remove</Text>
                   </TouchableOpacity>

@@ -103,8 +103,20 @@ export const notificationSchema = tableSchema({
   ],
 });
 
+export const activityLogSchema = tableSchema({
+  name: 'activity_logs',
+  columns: [
+    { name: 'item_id', type: 'string' },
+    { name: 'item_type', type: 'string' }, // 'todo' | 'shopping'
+    { name: 'action', type: 'string' },
+    { name: 'user_id', type: 'string' },
+    { name: 'details', type: 'string', isOptional: true },
+    { name: 'timestamp', type: 'number' },
+  ],
+});
+
 export const appDatabaseSchema = appSchema({
-  version: 2,
+  version: 3,
   tables: [
     habitSchema,
     habitLogSchema,
@@ -114,5 +126,6 @@ export const appDatabaseSchema = appSchema({
     categorySchema,
     journalEntrySchema,
     notificationSchema,
+    activityLogSchema,
   ],
 });

@@ -1,7 +1,9 @@
+
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { database } from '../../db/watermelon';
 import { Habit } from './HabitTypes';
 import { addHabit, updateHabit, deleteHabit } from './habitsSlice';
+import { addToSyncQueue } from '../../db/syncQueue';
 
 // Helper to convert WatermelonDB record to Habit
 const habitFromRecord = (record: any): Habit => ({
@@ -52,6 +54,7 @@ export const addHabitToDB = createAsyncThunk('habits/addToDB', async (habit: Hab
       rec.updated_at = habit.updatedAt;
     });
   });
+  addToSyncQueue({ type: 'habit', action: 'create', data: habit, timestamp: Date.now() });
   thunkAPI.dispatch(addHabit(habit));
 });
 
@@ -75,6 +78,7 @@ export const updateHabitInDB = createAsyncThunk('habits/updateInDB', async (habi
       rec.updated_at = habit.updatedAt;
     });
   });
+  addToSyncQueue({ type: 'habit', action: 'update', data: habit, timestamp: Date.now() });
   thunkAPI.dispatch(updateHabit(habit));
 });
 
@@ -85,5 +89,6 @@ export const deleteHabitFromDB = createAsyncThunk('habits/deleteFromDB', async (
     await record.markAsDeleted();
     await record.destroyPermanently();
   });
+  addToSyncQueue({ type: 'habit', action: 'delete', data: { id }, timestamp: Date.now() });
   thunkAPI.dispatch(deleteHabit(id));
 });

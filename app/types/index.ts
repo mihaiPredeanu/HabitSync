@@ -1,3 +1,12 @@
+export interface ActivityLog {
+  id: string;
+  itemId: string;
+  itemType: 'todo' | 'shopping';
+  action: string; // e.g., 'shared', 'unshared', 'edited', 'completed', 'comment'
+  userId: string;
+  details?: string;
+  timestamp: number;
+}
 
 export interface ShoppingList {
   id: string;

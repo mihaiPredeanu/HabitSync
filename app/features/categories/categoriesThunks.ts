@@ -1,7 +1,9 @@
+
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import { database } from '../../db/watermelon';
 import { Category } from '../../types';
 import { addCategory, updateCategory, deleteCategory } from './categoriesSlice';
+import { addToSyncQueue } from '../../db/syncQueue';
 
 const categoryFromRecord = (record: any): Category => ({
   id: record.id,
@@ -31,6 +33,7 @@ export const addCategoryToDB = createAsyncThunk('categories/addToDB', async (cat
       rec.updated_at = category.updatedAt;
     });
   });
+  addToSyncQueue({ type: 'category', action: 'create', data: category, timestamp: Date.now() });
   thunkAPI.dispatch(addCategory(category));
 });
 
@@ -46,6 +49,7 @@ export const updateCategoryInDB = createAsyncThunk('categories/updateInDB', asyn
       rec.updated_at = category.updatedAt;
     });
   });
+  addToSyncQueue({ type: 'category', action: 'update', data: category, timestamp: Date.now() });
   thunkAPI.dispatch(updateCategory(category));
 });
 
@@ -56,5 +60,6 @@ export const deleteCategoryFromDB = createAsyncThunk('categories/deleteFromDB', 
     await record.markAsDeleted();
     await record.destroyPermanently();
   });
+  addToSyncQueue({ type: 'category', action: 'delete', data: { id }, timestamp: Date.now() });
   thunkAPI.dispatch(deleteCategory(id));
 });

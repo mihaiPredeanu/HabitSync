@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Modal, TouchableWithoutFeedback, ScrollView } from 'react-native';
 import { View, Text, FlatList, TextInput, Button, StyleSheet, Alert, TouchableOpacity, Keyboard, Image } from 'react-native';
 import CategoryItem from '../components/CategoryItem';
 import { useDispatch, useSelector } from 'react-redux';
@@ -15,7 +16,15 @@ const SettingsScreen = () => {
   const [color, setColor] = useState('#607d8b');
   const [icon, setIcon] = useState('📁');
   const [isEdit, setIsEdit] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  // Simple color palette
+  const colorPalette = [
+    '#607d8b', '#2196f3', '#43a047', '#f44336', '#ff9800', '#ffeb3b', '#8bc34a', '#e91e63', '#9c27b0', '#00bcd4', '#795548', '#cddc39', '#ffc107', '#009688', '#3f51b5', '#bdbdbd', '#212121', '#fff'
+  ];
+  // Simple emoji palette
+  const emojiPalette = ['📁','💡','🏃','📚','🍎','🛒','🧘','💪','🧠','🎯','📝','🛏️','🚰','🍽️','🚭','🚰','🧹','🧺','🧼','🧴','🧽','🧯','🛀','🧑‍💻','🎵','🎨','📅','🕒','🌙','☀️','⭐','🔥','🌱','🌊','🍀','🍎','🥦','🍞','🍗','🍫','🍩','🍔','🍕','🍟','🍣','🍦','🍿','🥤','🍺','🍷','☕','🍼','🥛','🧃','🧊','🥚','🥓','🥨','🥗','🍲','🍛','🍜','🍚','🍙','🍘','🍥','🍡','🍢','🍧','🍨','🍰','🎂','🍮','🍭','🍬','🍯','🍪','🍫','🍿','🍩','🍔','🍟','🍕','🍖','🍗','🥩','🥓','🥚','🍳','🥞','🧇','🥯','🥨','🥐','🍞','🥖','🥪','🥙','🧆','🥗','🥘','🥫','🍝','🍜','🍲','🍛','🍣','🍱','🍤','🍙','🍚','🍘','🍥','🥠','🥡','🦪','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','🍯','🥛','🍼','☕','🍵','🧃','🥤','🍶','🍺','🍻','🥂','🍷','🥃','🍸','🍹','🍾','🧊','🥄','🍴','🍽️','🥣','🥡','🥢','🧂'];
   useEffect(() => {
     dispatch(fetchCategories());
   }, [dispatch]);
@@ -98,9 +107,9 @@ const SettingsScreen = () => {
       <View style={{ height: 1, backgroundColor: theme.border, marginBottom: theme.spacing, width: '100%' }} />
 
       {/* Categories section */}
-      <Text style={[styles.sectionLabel, { color: theme.text, marginBottom: theme.spacing / 2 }]}>Categories</Text>
+      <Text style={[styles.sectionLabel, { color: theme.text, marginBottom: theme.spacing / 2, letterSpacing: 0.5 }]}>Categories</Text>
       {/* Section: Details */}
-      <View style={[styles.inputRow, { marginBottom: theme.spacing }] }>
+      <View style={[styles.inputRow, { marginBottom: theme.spacing, alignItems: 'flex-end' }] }>
         <TextInput
           style={[
             styles.input,
@@ -136,7 +145,7 @@ const SettingsScreen = () => {
               elevation: 2,
             },
           ]}
-          onPress={() => { /* Future: open color picker modal */ }}
+          onPress={() => setShowColorPicker(true)}
           accessibilityLabel="Pick Category Color"
           activeOpacity={0.7}
         >
@@ -153,6 +162,8 @@ const SettingsScreen = () => {
               borderRadius: theme.borderRadius,
               padding: theme.padding,
               marginRight: theme.spacing / 2,
+              fontWeight: 'bold',
+              letterSpacing: 0.5,
             },
           ]}
           placeholder="Color"
@@ -176,12 +187,51 @@ const SettingsScreen = () => {
               elevation: 1,
             },
           ]}
-          onPress={() => { /* Future: open emoji picker modal */ }}
+          onPress={() => setShowEmojiPicker(true)}
           accessibilityLabel="Pick Category Icon"
           activeOpacity={0.7}
         >
           <Text style={{ fontSize: 20 }}>{icon}</Text>
         </TouchableOpacity>
+      {/* Color Picker Modal */}
+      <Modal visible={showColorPicker} transparent animationType="fade" onRequestClose={() => setShowColorPicker(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowColorPicker(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: theme.background, borderRadius: 16, padding: 18, flexDirection: 'row', flexWrap: 'wrap', width: 320, justifyContent: 'center' }}>
+              {colorPalette.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: c, margin: 6, borderWidth: c === color ? 3 : 1, borderColor: c === color ? theme.primary : theme.border }}
+                  onPress={() => { setColor(c); setShowColorPicker(false); }}
+                  accessibilityLabel={`Pick color ${c}`}
+                />
+              ))}
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Emoji Picker Modal */}
+      <Modal visible={showEmojiPicker} transparent animationType="fade" onRequestClose={() => setShowEmojiPicker(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowEmojiPicker(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: theme.background, borderRadius: 16, padding: 18, width: 320, maxHeight: 340 }}>
+              <ScrollView contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+                {emojiPalette.map((e) => (
+                  <TouchableOpacity
+                    key={e}
+                    style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center', margin: 4, borderRadius: 18, backgroundColor: e === icon ? theme.primary : 'transparent' }}
+                    onPress={() => { setIcon(e); setShowEmojiPicker(false); }}
+                    accessibilityLabel={`Pick icon ${e}`}
+                  >
+                    <Text style={{ fontSize: 22 }}>{e}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
         <TextInput
           style={[
             styles.input,
@@ -193,6 +243,9 @@ const SettingsScreen = () => {
               borderRadius: theme.borderRadius,
               padding: theme.padding,
               marginRight: theme.spacing / 2,
+              fontWeight: 'bold',
+              fontSize: 18,
+              textAlign: 'center',
             },
           ]}
           placeholder="Icon"
@@ -238,7 +291,7 @@ const SettingsScreen = () => {
       {/* Helper text for pickers */}
       <View style={{ flexDirection: 'row', marginBottom: theme.spacing / 2, width: '100%' }}>
         <Text style={{ color: theme.placeholder, fontSize: 12, marginRight: theme.spacing }}>
-          Tap 🎨 to pick color, emoji to pick icon
+          Tap <Text style={{ fontSize: 15 }}>🎨</Text> to pick color, <Text style={{ fontSize: 15 }}>{icon}</Text> to pick icon
         </Text>
       </View>
       {categories.length === 0 ? (
@@ -264,20 +317,31 @@ const SettingsScreen = () => {
                 width: '100%',
               }}
             >
-              {/* Color swatch */}
-              <View style={{
-                width: 28,
-                height: 28,
-                borderRadius: 14,
-                backgroundColor: item.color,
-                marginRight: theme.spacing,
-                borderWidth: 1,
-                borderColor: theme.border,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <Text style={{ fontSize: 16 }}>{item.icon}</Text>
-              </View>
+              {/* Color swatch and icon */}
+              <TouchableOpacity
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  backgroundColor: item.color,
+                  marginRight: theme.spacing,
+                  borderWidth: 2,
+                  borderColor: theme.primary,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onPress={() => {
+                  setId(item.id);
+                  setName(item.name);
+                  setColor(item.color);
+                  setIcon(item.icon);
+                  setIsEdit(true);
+                }}
+                accessibilityLabel={`Edit category ${item.name}`}
+                activeOpacity={0.7}
+              >
+                <Text style={{ fontSize: 18 }}>{item.icon}</Text>
+              </TouchableOpacity>
               <CategoryItem category={item} />
               {!item.isDefault && (
                 <Button title="Delete" color="#f44336" onPress={() => handleDelete(item.id)} />
